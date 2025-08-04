@@ -1,0 +1,181 @@
+NAME: vln_clash_r2r_released
+BASE_TASK_CONFIG_PATH: run_r2r/r2r_vlnce.yaml
+SIMULATOR_GPU_IDS: [0]
+TORCH_GPU_ID: 0
+TORCH_GPU_IDS: [0]
+TRAINER_NAME: SS-CLASH
+GPU_NUMBERS: 1
+NUM_ENVIRONMENTS: 16
+
+BASE_LOG_DIR: ./ 
+TENSORBOARD_DIR: data/logs/tensorboard_dirs/${NAME}
+CHECKPOINT_FOLDER: data/logs/${NAME}/checkpoints/
+EVAL_CKPT_PATH_DIR: data/logs/${NAME}/checkpoints/
+RESULTS_DIR: data/logs/${NAME}/eval_results/
+VIDEO_DIR: data/logs/${NAME}/video/
+LOG_DIR: data/logs/${NAME}
+
+# VIDEO_OPTION: ['disk']
+
+INFERENCE:
+  SPLIT: test
+  USE_CKPT_CONFIG: False
+  SAMPLE: False
+  CKPT_PATH: '' # REPLACE THIS
+  PREDICTIONS_FILE: ''
+  FORMAT: r2r
+  EPISODE_COUNT: 100 # default: -1
+
+EVAL:
+  USE_CKPT_CONFIG: False
+  SPLIT: val_unseen
+  EPISODE_COUNT: -1
+  CKPT_PATH_DIR: data/logs/vln_clash_r2r_released/checkpoints/ckpts/val_unseen_best_spl_sr.pth
+  fast_eval: False
+
+  auto_remove: False
+
+  success_distance: 3.0 # default: 3.0
+
+IL:
+  iters: 25000
+  log_every: 200
+  lr: 2e-5
+  batch_size: 1 # equal to NUM_ENVIRONMENTS
+  ml_weight: 1.0
+  expert_policy: spl
+
+  load_from_ckpt: False
+  ckpt_to_load: ''
+
+  sample_ratio: 0.75
+  decay_interval: 3000
+  
+  max_traj_len: 15
+  max_text_len: 80
+  loc_noise: 0.5
+  waypoint_aug: False
+  ghost_aug: 0.0
+  back_algo: teleport
+  # back_algo: control
+  tryout: True
+
+  add_dataset_aug: False
+  aug_times: 1
+  accumulate_grad: True
+  aug_dataset_type: prevalent # scalevln / prevalent
+
+  add_env_dropout: True
+  env_dropout_prob: 0.3
+
+  train_mode: dagger # if [dagger], teacher + sample; if [sample], only sample.
+
+MODEL:
+  task_type: r2r
+
+  policy_name: PolicyViewSelectionCLASH
+  model_name: scalevln # magic / scalevln
+  
+  NUM_ANGLES: 12
+  pretrained_path: data/pretrained/scaleVLN_ft/ckpts/best_val_unseen
+  fix_lang_embedding: False
+  fix_pano_embedding: False
+  use_depth_embedding: True
+  use_sprels: True
+  merge_ghost: True
+  consume_ghost: True
+
+  # Dropout
+  add_next_action_pred_dropout: False
+  env_dropout_prob: 0.3
+
+  add_depth_dropout: False
+  add_global_dropout: False
+
+  # local & global branches
+  add_local_branch: True
+  
+  spatial_output: False
+  RGB_ENCODER:
+    output_size: 512
+  DEPTH_ENCODER:
+    output_size: 256    
+  VISUAL_DIM:
+    vis_hidden: 768
+    directional: 128
+  INSTRUCTION_ENCODER:
+    bidirectional: True
+    model_name: bert
+  
+  # Layers
+  num_l_layers: 9
+  num_pano_layers: 2
+  num_x_layers: 4
+  
+  CLIP_ENCODER:
+    output_size: 1024 # ETPNav: 512 ; scaleVLN: 1024
+    model: data/pretrained/CLIP-H14/open_clip_pytorch_model.bin # ETPNav: ViT-B/32 ; scaleVLN: ViT-H/14
+  
+  WAYPOINT_PRED:
+    ckpt_path: data/wp_pred/snap/check_val_best_avg_wayscore
+
+    angles: 120
+    num_imgs: 12
+    TRM_LAYER: 2
+    TRM_NEIGHBOR: 1
+    HEATMAP_OFFSET: 5
+
+    encoder_type: dinov2
+    rgb_encoder_type: cliph14
+    depth_encoder_type: resnet
+
+    add_rgb_dropout: False
+    add_depth_dropout: False
+    add_visual_dropout: False
+
+    rgb_dropout_prob: 0.2
+    depth_dropout_prob: 0.2
+    visual_dropout_prob: 0.2
+
+    ablate_rgb: True
+    ablate_depth: False
+    ablate_visual: False
+
+    include_down_views: False
+    only_down_views: False
+  
+  causal:
+    # backdoor inference
+    do_back_img: True
+    do_back_txt: True
+    img_zdict_file: data/causal/image_z_dict_clipH14_50.tsv
+    txt_zdict_file: data/causal/instr_z_dict.tsv
+    backdoor_txt_zdict_file: ''
+    do_back_img_type: type_2 
+
+    # frontdoor inference
+    do_front_local: True
+    do_front_global: True
+    do_front_txt: True
+    front_feat_file: data/causal/tim_features_scaleVLN.tsv
+    front_n_clusters: 24
+    front_Kmeans_file: z_front_log/z_front_feature_0.tsv
+
+LLM:
+  use: False
+  llm_name: Qwen/Qwen2.5-VL-7B-Instruct
+  llm_port: 8007
+  llm_type: local # remote / local
+  llm_role: robot # robot 
+  text_marker : '[ ]' # < > / <| |>
+  chat_single_node: True 
+
+
+# DATASET:
+#   episodes_allowed: [11]
+
+PointGoal:
+  use: True
+  config_path: configs/ddppo_pointnav_mp3d.yaml
+  max_pg_steps: 50
+  analysis_result: True
